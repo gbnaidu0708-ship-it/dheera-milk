@@ -1,0 +1,180 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { fmtDate, WHATSAPP_NUMBER } from '@/lib/constants'
+import type { DbUser } from '@/types'
+import Card       from '@/components/ui/Card'
+import Button     from '@/components/ui/Button'
+import StatusBadge from '@/components/ui/StatusBadge'
+import { SkeletonCard } from '@/components/ui/Skeleton'
+import toast from 'react-hot-toast'
+
+export default function AdminCustomers() {
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [search,    setSearch]    = useState('')
+  const [page,      setPage]      = useState(1)
+  const [total,     setTotal]     = useState(0)
+  const [selected,  setSelected]  = useState<DbUser | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const params = new URLSearchParams({ search, page: String(page), limit: '15' })
+    const res    = await fetch(`/api/customers?${params}`)
+    const json   = await res.json()
+    setCustomers(json.data ?? [])
+    setTotal(json.count ?? 0)
+    setLoading(false)
+  }, [search, page])
+
+  useEffect(() => { load() }, [load])
+
+  const toggleActive = async (id: string, cur: boolean) => {
+    const res = await fetch('/api/customers', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id, is_active: !cur }),
+    })
+    if (res.ok) { toast.success('Updated!'); load() }
+    else toast.error('Failed to update')
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--blue-deep)' }}>Customers</h1>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{total} total</p>
+      </div>
+
+      {/* Search */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Search by name or mobile…"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
+          onKeyDown={e => e.key === 'Enter' && load()}
+          className="flex-1 px-4 py-2.5 rounded-xl border text-sm"
+          style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+        />
+        <Button size="sm" onClick={load}>Search</Button>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <SkeletonCard key={i} />)}</div>
+      ) : (
+        <div className="bg-white rounded-2xl overflow-hidden shadow-card border border-[var(--border)]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: '#F8FAFF' }}>
+                  {['Customer', 'Mobile', 'Area', 'Subscription', 'Joined', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c, i) => (
+                  <tr key={c.id} style={{ borderTop: '1px solid rgba(13,59,159,0.06)', background: i % 2 === 0 ? '#fff' : '#FAFBFF' }}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
+                          style={{ background: 'linear-gradient(135deg,var(--blue),var(--blue-mid))' }}
+                        >
+                          {c.name?.[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <span className="font-semibold" style={{ color: 'var(--blue-deep)' }}>{c.name ?? '—'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>+91 {c.mobile}</td>
+                    <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{c.area ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {c.subscriptions?.length
+                        ? <StatusBadge status={c.subscriptions[0].status} />
+                        : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>None</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDate(c.created_at)}</td>
+                    <td className="px-4 py-3"><StatusBadge status={c.is_active ? 'active' : 'cancelled'} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1.5">
+                        <button onClick={() => setSelected(c)} title="View details"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all hover:opacity-80"
+                          style={{ background: '#EFF6FF', color: '#1D4ED8' }}>👁</button>
+                        <button
+                          onClick={() => toggleActive(c.id, c.is_active)}
+                          title={c.is_active ? 'Deactivate' : 'Activate'}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                          style={{ background: c.is_active ? '#FEE2E2' : '#D1FAE5', color: c.is_active ? '#991B1B' : '#065F46' }}
+                        >
+                          {c.is_active ? '🚫' : '✅'}
+                        </button>
+                        <a href={`https://wa.me/91${c.mobile}`} target="_blank" rel="noopener noreferrer" title="WhatsApp"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                          style={{ background: '#D1FAE5', color: '#065F46' }}>💬</a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Pagination */}
+          <div className="px-4 py-3 flex justify-between items-center border-t" style={{ borderColor: 'rgba(13,59,159,0.08)' }}>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Page {page} · {total} customers</span>
+            <div className="flex gap-2">
+              <Button size="xs" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</Button>
+              <Button size="xs" variant="outline" disabled={page * 15 >= total} onClick={() => setPage(p => p + 1)}>Next →</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4"
+          onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between mb-4">
+              <h3 className="font-bold text-lg" style={{ color: 'var(--blue-deep)' }}>Customer Details</h3>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ background: 'var(--blue-light)' }}>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white"
+                style={{ background: 'linear-gradient(135deg,var(--blue),var(--blue-mid))' }}>
+                {selected.name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+              <div>
+                <p className="font-bold" style={{ color: 'var(--blue-deep)' }}>{selected.name ?? 'No name'}</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>+91 {selected.mobile}</p>
+              </div>
+            </div>
+            {[
+              ['Email',   selected.email   ?? '—'],
+              ['Address', selected.address ?? '—'],
+              ['Area',    selected.area    ?? '—'],
+              ['Joined',  fmtDate(selected.created_at)],
+              ['Status',  selected.is_active ? 'Active' : 'Inactive'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between py-2.5 border-b" style={{ borderColor: 'rgba(13,59,159,0.08)' }}>
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{k}</span>
+                <span className="text-sm font-semibold" style={{ color: 'var(--blue-deep)' }}>{v}</span>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-4">
+              <a href={`https://wa.me/91${selected.mobile}`} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button variant="whatsapp" full>💬 WhatsApp</Button>
+              </a>
+              <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

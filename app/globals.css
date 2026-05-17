@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ─── CSS Variables ────────────────────────────────────────────────────────── */
+:root {
+  --font-playfair: 'Playfair Display', Georgia, serif;
+  --font-dm-sans:  'DM Sans', system-ui, sans-serif;
+  --blue:          #0D3B9F;
+  --blue-deep:     #082567;
+  --blue-mid:      #2B5CE6;
+  --blue-light:    #EAF4FF;
+  --green:         #1E8E3E;
+  --green-light:   #58B368;
+  --green-pale:    #E6F5EB;
+  --cream:         #FFF8F0;
+  --text:          #0A1628;
+  --text-muted:    #4B5878;
+  --border:        rgba(13, 59, 159, 0.12);
+  --bg-page:       #F0F4FF;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html  { scroll-behavior: smooth; }
+body  {
+  font-family: var(--font-dm-sans);
+  background: #fff;
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Utility classes ───────────────────────────────────────────────────────── */
+.dot-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='2' fill='%230D3B9F' fill-opacity='0.03'/%3E%3C/svg%3E");
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.wave {
+  display: block;
+  width: 100%;
+  line-height: 0;
+}
+
+.scrollbar-hide          { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ─── Animations ────────────────────────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-14px); }
+}
+@keyframes floatCard {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+@keyframes floatCard2 {
+  0%, 100% { transform: translateY(-50%); }
+  50%       { transform: translateY(calc(-50% - 8px)); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-float       { animation: float      3s  ease-in-out infinite; }
+.animate-float-card  { animation: floatCard  4s  ease-in-out infinite; }
+.animate-float-card2 { animation: floatCard2 4s  ease-in-out infinite; }
+.animate-float-card-d1 { animation: floatCard 4s ease-in-out 1.5s  infinite; }
+.animate-float-card-d2 { animation: floatCard 4s ease-in-out 0.75s infinite; }
+.animate-fade-up     { animation: fadeUp     0.5s ease forwards; }
+.animate-slide-up    { animation: slideUp    0.3s ease forwards; }
+
+/* ─── Scroll reveal ─────────────────────────────────────────────────────────── */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ─── Skeleton ──────────────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ─── Safe area ─────────────────────────────────────────────────────────────── */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+/* ─── Focus ─────────────────────────────────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(13, 59, 159, 0.15);
+}
+
+/* ─── Touch targets ─────────────────────────────────────────────────────────── */
+.touch { min-height: 48px; min-width: 48px; }
