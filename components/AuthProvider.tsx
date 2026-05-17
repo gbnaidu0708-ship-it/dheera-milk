@@ -20,13 +20,16 @@ export const profileQueryKey = (authId: string | null | undefined) =>
   ['profile', authId ?? null] as const
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const sb = getSupabase()
   const qc = useQueryClient()
 
-  const [session, setSession]               = useState<Session | null>(null)
+  const [session, setSession]                 = useState<Session | null>(null)
   const [sessionResolved, setSessionResolved] = useState(false)
 
   useEffect(() => {
+    // getSupabase() is browser-only — defer construction to here so this
+    // module is safe to evaluate during SSR/prerender (where the
+    // NEXT_PUBLIC_* env vars may not be inlined yet).
+    const sb = getSupabase()
     // supabase-js v2 emits INITIAL_SESSION on subscribe, so we don't need
     // a separate getSession() call.
     const { data: { subscription } } = sb.auth.onAuthStateChange((event, nextSession) => {
@@ -37,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
     return () => subscription.unsubscribe()
-  }, [sb, qc])
+  }, [qc])
 
   const authId = session?.user?.id ?? null
 
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     enabled:  !!authId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
+      const sb = getSupabase()
       const { data, error } = await sb.from('users').select('*').eq('auth_id', authId!).single()
       if (error) throw error
       return data as DbUser
@@ -56,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !sessionResolved || (!!authId && profile.isPending)
 
   const signOut = async () => {
+    const sb = getSupabase()
     await sb.auth.signOut()
     // onAuthStateChange('SIGNED_OUT') clears session and removes the profile query.
   }

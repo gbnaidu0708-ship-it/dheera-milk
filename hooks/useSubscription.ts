@@ -14,7 +14,6 @@ const keys = {
 }
 
 export function useSubscription(userId: string | null) {
-  const sb = getSupabase()
   const qc = useQueryClient()
   const enabled = !!userId
 
@@ -22,6 +21,7 @@ export function useSubscription(userId: string | null) {
     queryKey: enabled ? keys.subscription(userId!) : ['customer', 'subscription', null],
     enabled,
     queryFn: async () => {
+      const sb = getSupabase()
       const { data, error } = await sb
         .from('subscriptions')
         .select('*')
@@ -39,6 +39,7 @@ export function useSubscription(userId: string | null) {
     queryKey: enabled ? keys.today(userId!) : ['customer', 'today', null],
     enabled,
     queryFn: async () => {
+      const sb = getSupabase()
       const { data, error } = await sb
         .from('delivery_schedules')
         .select('*')
@@ -54,6 +55,7 @@ export function useSubscription(userId: string | null) {
     queryKey: enabled ? keys.invoices(userId!) : ['customer', 'invoices', null],
     enabled,
     queryFn: async () => {
+      const sb = getSupabase()
       const { data, error } = await sb
         .from('invoices')
         .select('*, payments(*)')
@@ -65,9 +67,10 @@ export function useSubscription(userId: string | null) {
     },
   })
 
-  // Realtime → invalidate the relevant queries.
+  // Realtime → invalidate the relevant queries. Browser-only.
   useEffect(() => {
     if (!userId) return
+    const sb = getSupabase()
     const ch = sb.channel(`customer-rt-${userId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_schedules', filter: `user_id=eq.${userId}` },
@@ -78,10 +81,11 @@ export function useSubscription(userId: string | null) {
       .subscribe()
 
     return () => { sb.removeChannel(ch) }
-  }, [sb, qc, userId])
+  }, [qc, userId])
 
   const setStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: 'active' | 'paused' | 'cancelled' }) => {
+      const sb = getSupabase()
       const { error } = await sb.from('subscriptions').update({ status }).eq('id', id)
       if (error) throw error
     },
