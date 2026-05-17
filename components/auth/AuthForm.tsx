@@ -10,7 +10,6 @@ type Mode = 'login' | 'signup'
 
 export default function AuthForm() {
   const router = useRouter()
-  const sb     = getSupabase()
 
   const [mode, setMode] = useState<Mode>('login')
   const [loading, setLoading] = useState(false)
@@ -46,7 +45,7 @@ export default function AuthForm() {
 
       // Hydrate the browser client's session so middleware sees us on the next nav.
       if (json.session) {
-        await sb.auth.setSession({
+        await getSupabase().auth.setSession({
           access_token:  json.session.access_token,
           refresh_token: json.session.refresh_token,
         })
@@ -101,7 +100,7 @@ export default function AuthForm() {
       }
 
       if (json.session) {
-        await sb.auth.setSession({
+        await getSupabase().auth.setSession({
           access_token:  json.session.access_token,
           refresh_token: json.session.refresh_token,
         })
