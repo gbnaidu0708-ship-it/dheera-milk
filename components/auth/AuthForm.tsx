@@ -18,7 +18,8 @@ export default function AuthForm() {
   const [identifier,    setIdentifier]    = useState('')
   const [loginPassword, setLoginPassword] = useState('')
 
-  // signup — minimal: mobile + password + apartment + flat number
+  // signup — name + mobile + password + apartment + flat number
+  const [name,          setName]          = useState('')
   const [phone,         setPhone]         = useState('')
   const [password,      setPwd]           = useState('')
   const [flatApartment, setFlatApartment] = useState('')
@@ -62,7 +63,7 @@ export default function AuthForm() {
   }
 
   const handleSignup = async () => {
-    if (!phone.trim() || !password || !flatApartment.trim() || !flatNumber.trim()) {
+    if (!name.trim() || !phone.trim() || !password || !flatApartment.trim() || !flatNumber.trim()) {
       toast.error('Fill in all fields')
       return
     }
@@ -76,7 +77,7 @@ export default function AuthForm() {
         method:  'POST',
         headers: { 'content-type': 'application/json' },
         body:    JSON.stringify({
-          phone, password,
+          name, phone, password,
           flat_apartment: flatApartment,
           flat_number:    flatNumber,
         }),
@@ -91,7 +92,8 @@ export default function AuthForm() {
         })
       }
 
-      toast.success('Welcome to Dheera Fresh! 🥛')
+      const firstName = name.trim().split(/\s+/)[0]
+      toast.success(`Welcome${firstName ? `, ${firstName}` : ''}! 🥛`)
       routeAfterLogin(json.profile?.role)
     } catch (e: any) {
       toast.error(e.message ?? 'Signup failed')
@@ -148,13 +150,19 @@ export default function AuthForm() {
         ) : (
           <>
             <Field
+              label="Full name"
+              value={name}
+              onChange={setName}
+              placeholder="Your name"
+              autoFocus
+            />
+            <Field
               label="Mobile number"
               type="tel"
               inputMode="numeric"
               value={phone}
               onChange={setPhone}
               placeholder="10-digit mobile"
-              autoFocus
             />
             <Field
               label="Password"

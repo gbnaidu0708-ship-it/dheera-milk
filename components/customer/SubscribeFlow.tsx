@@ -35,7 +35,7 @@ export default function SubscribeFlow() {
 
   const [step,      setStep]      = useState(1)
   const [milkType,  setMilkType]  = useState<MilkType>('cow')
-  const [qtyChoice, setQtyChoice] = useState<QtyChoice>(500)
+  const [qtyChoice, setQtyChoice] = useState<QtyChoice>(1000)
   const [customQty, setCustomQty] = useState<string>(String(QTY_CUSTOM_MIN_ML))
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [loading,   setLoading]   = useState(false)
@@ -195,8 +195,8 @@ export default function SubscribeFlow() {
                 )}
               </div>
               <div className="text-right">
-                <p className="font-bold text-sm" style={{ color: 'var(--green)' }}>₹{p.pricePerHalf}</p>
-                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>per 500ml</p>
+                <p className="font-bold text-sm" style={{ color: 'var(--green)' }}>₹{p.pricePerLitre}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>per Litre</p>
               </div>
               {milkType === p.id && p.available && (
                 <span className="text-[var(--blue)] text-xl">✓</span>

@@ -35,7 +35,7 @@ export default function Products() {
 function ActiveCard({ product }: { product: MilkProduct }) {
   const [qty, setQty] = useState(1)
   const router        = useRouter()
-  const daily         = product.pricePerHalf * qty
+  const daily         = product.pricePerLitre * qty
 
   return (
     <div
@@ -51,12 +51,12 @@ function ActiveCard({ product }: { product: MilkProduct }) {
         <p className="font-bold text-[17px] mb-1"   style={{ color: 'var(--blue-deep)' }}>{product.name}</p>
         <p className="text-[13px] leading-snug mb-3" style={{ color: 'var(--text-muted)' }}>{product.description}</p>
         <p className="font-display font-bold text-[22px] mb-1" style={{ color: 'var(--green)' }}>
-          ₹{product.pricePerHalf}
-          <span className="text-[13px] font-sans font-normal" style={{ color: 'var(--text-muted)' }}> / 500ml</span>
+          ₹{product.pricePerLitre}
+          <span className="text-[13px] font-sans font-normal" style={{ color: 'var(--text-muted)' }}> / Litre</span>
         </p>
         {qty > 1 && (
           <p className="text-[12px] mb-2 font-semibold" style={{ color: 'var(--green)' }}>
-            Daily: ₹{daily}
+            Daily ({qty}L): ₹{daily}
           </p>
         )}
         <div className="flex items-center justify-between mt-auto">

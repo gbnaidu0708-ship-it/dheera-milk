@@ -7,8 +7,8 @@ const schema = z.object({
   invoice_id:     z.string().uuid(),
   payment_method: z.enum(['upi', 'cash', 'razorpay', 'bank_transfer']),
   amount:         z.number().positive(),
-  transaction_id: z.string().optional(),
-  notes:          z.string().optional(),
+  transaction_id: z.string().nullish(),
+  notes:          z.string().nullish(),
 })
 
 export async function POST(req: NextRequest) {

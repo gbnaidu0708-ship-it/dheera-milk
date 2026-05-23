@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body   = createSchema.parse(await req.json())
-    const price  = (MILK_PRICE[body.milk_type] ?? 60) * (body.quantity_ml / 500)
+    const price  = (MILK_PRICE[body.milk_type] ?? 60) * (body.quantity_ml / 1000)
 
     const { data: sub, error: subErr } = await sb
       .from('subscriptions')
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest) {
       start_date:  body.start_date  ?? existing.start_date,
       status:      body.status      ?? existing.status,
     }
-    const price = (MILK_PRICE[next.milk_type] ?? 60) * (next.quantity_ml / 500)
+    const price = (MILK_PRICE[next.milk_type] ?? 60) * (next.quantity_ml / 1000)
 
     const { data: updated, error: updErr } = await sb
       .from('subscriptions')

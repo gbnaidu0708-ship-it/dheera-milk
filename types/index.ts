@@ -109,7 +109,7 @@ export interface MilkProduct {
   description:   string
   emoji:         string
   bgClass:       string
-  pricePerHalf:  number   // price per 500 ml
+  pricePerLitre: number
   available:     boolean
 }
 

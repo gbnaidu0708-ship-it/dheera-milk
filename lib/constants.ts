@@ -5,7 +5,7 @@ export const WHATSAPP_URL    = `https://wa.me/${WHATSAPP_NUMBER}`
 export const APP_NAME        = 'Dheera Fresh Milk'
 export const APP_URL         = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dheerafreshmilk.com'
 
-// Price per 500 ml
+// Price per 1 litre (1000 ml) — the canonical pricing unit.
 export const MILK_PRICE: Record<string, number> = {
   cow:     60,
   buffalo: 70,
@@ -19,7 +19,7 @@ export const PRODUCTS: MilkProduct[] = [
     description: 'Light & nutritious, perfect for daily consumption',
     emoji: '🐄',
     bgClass: 'from-[#EAF4FF] to-[#D4EBFF]',
-    pricePerHalf: 60,
+    pricePerLitre: 60,
     available: true,
   },
   {
@@ -28,7 +28,7 @@ export const PRODUCTS: MilkProduct[] = [
     description: 'Rich & creamy, high fat content for chai lovers',
     emoji: '🐃',
     bgClass: 'from-[#EDE9FF] to-[#DDD5FF]',
-    pricePerHalf: 70,
+    pricePerLitre: 70,
     available: false,
   },
   {
@@ -37,7 +37,7 @@ export const PRODUCTS: MilkProduct[] = [
     description: 'Premium Desi cow milk, easier to digest',
     emoji: '🌾',
     bgClass: 'from-[#E6F5EB] to-[#CCF0D6]',
-    pricePerHalf: 90,
+    pricePerLitre: 90,
     available: false,
   },
 ]
@@ -74,5 +74,5 @@ export function fmtMonth(month: number, year: number) {
 }
 
 export function calcPrice(milkType: string, quantityMl: number) {
-  return (MILK_PRICE[milkType] ?? 60) * (quantityMl / 500)
+  return (MILK_PRICE[milkType] ?? 60) * (quantityMl / 1000)
 }

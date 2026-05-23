@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { recordEvent } from '@/lib/audit'
 
 const schema = z.object({
+  name:           z.string().trim().min(1, 'Name is required').max(80),
   phone:          z.string().trim(),
   password:       z.string().min(6, 'Password must be at least 6 characters'),
   flat_apartment: z.string().trim().min(1, 'Apartment / society name is required').max(120),
@@ -33,13 +34,14 @@ export async function POST(req: NextRequest) {
     const { data, error } = await sb.auth.signUp({
       email,
       password: body.password,
-      options: { data: { mobile } },
+      options: { data: { name: body.name, mobile } },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     if (!data.user) return NextResponse.json({ error: 'Signup failed' }, { status: 400 })
 
     const { data: profile, error: profileErr } = await sb.from('users').insert({
       auth_id:        data.user.id,
+      name:           body.name,
       mobile,
       email,
       role:           'customer',
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     await recordEvent(sb, profile.id, 'signup', {
+      name:      body.name,
       apartment: body.flat_apartment,
       flat:      body.flat_number,
     })
