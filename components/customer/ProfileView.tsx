@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth, profileQueryKey } from '@/components/AuthProvider'
 import { getSupabase } from '@/lib/supabase'
+import { WHATSAPP_URL } from '@/lib/constants'
 import Card   from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import toast  from 'react-hot-toast'
@@ -33,7 +34,8 @@ export default function ProfileView() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('Not signed in')
-      const { error } = await getSupabase()
+      const sb = getSupabase()
+      const { error } = await sb
         .from('users')
         .update({
           name,
@@ -44,6 +46,12 @@ export default function ProfileView() {
         })
         .eq('id', user.id)
       if (error) throw error
+      // best-effort audit
+      sb.from('user_events').insert({
+        user_id:    user.id,
+        event_type: 'profile_updated',
+        metadata:   { name, flat_apartment: flatApartment, flat_number: flatNumber, area },
+      }).then(() => {}, () => {})
     },
     onSuccess: () => {
       toast.success('Profile updated! ✅')
@@ -121,6 +129,17 @@ export default function ProfileView() {
         <div className="mt-5">
           <Button full loading={saving} onClick={save}>Save Changes</Button>
         </div>
+      </Card>
+
+      {/* Contact / Support */}
+      <Card style={{ background: '#ECFDF5', borderColor: '#A7F3D0' }}>
+        <p className="font-bold mb-1" style={{ color: '#065F46' }}>Contact us</p>
+        <p className="text-xs mb-3" style={{ color: '#047857' }}>
+          Questions or support — message us on WhatsApp.
+        </p>
+        <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+          <Button variant="whatsapp" full>💬 Chat on WhatsApp · +91 96205 44988</Button>
+        </a>
       </Card>
 
       {/* Logout */}

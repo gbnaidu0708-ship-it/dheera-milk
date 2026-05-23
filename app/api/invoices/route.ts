@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
+import { recordEvent } from '@/lib/audit'
 
 export async function GET(req: NextRequest) {
   const sb      = createServerSupabase()
@@ -71,5 +72,13 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await recordEvent(sb, user_id, 'invoice_generated', {
+    invoice_id:   data.id,
+    invoice_no:   data.invoice_number,
+    month, year,
+    total_amount: data.total_amount,
+  })
+
   return NextResponse.json({ data })
 }

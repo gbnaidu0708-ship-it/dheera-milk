@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
 import { z } from 'zod'
+import { recordEvent } from '@/lib/audit'
 
 const schema = z.object({
   invoice_id:     z.string().uuid(),
@@ -31,6 +32,12 @@ export async function POST(req: NextRequest) {
     const newPaid  = Number(inv.paid_amount) + body.amount
     const ps       = newPaid >= Number(inv.total_amount) ? 'paid' : newPaid > 0 ? 'partial' : 'pending'
     await sb.from('invoices').update({ paid_amount: newPaid, payment_status: ps }).eq('id', body.invoice_id)
+
+    await recordEvent(sb, inv.user_id, 'payment_recorded', {
+      invoice_id: body.invoice_id,
+      amount:     body.amount,
+      method:     body.payment_method,
+    })
 
     return NextResponse.json({ data: payment })
   } catch (e: any) {

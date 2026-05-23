@@ -6,6 +6,7 @@ import { fmt } from '@/lib/constants'
 import type { AdminStats } from '@/types'
 import Card from '@/components/ui/Card'
 import { SkeletonCard } from '@/components/ui/Skeleton'
+import AdminNotifications from '@/components/admin/AdminNotifications'
 
 export default function AdminHome() {
   const [stats,   setStats]   = useState<AdminStats | null>(null)
@@ -77,6 +78,9 @@ export default function AdminHome() {
           ))}
         </div>
       )}
+
+      {/* Daily notifications */}
+      <AdminNotifications />
 
       {/* Quick actions */}
       <div>

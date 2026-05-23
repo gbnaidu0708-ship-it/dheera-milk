@@ -14,23 +14,25 @@ export default function AuthForm() {
   const [mode, setMode] = useState<Mode>('login')
   const [loading, setLoading] = useState(false)
 
-  // login fields
-  const [identifier, setIdentifier] = useState('')
+  // login
+  const [identifier,    setIdentifier]    = useState('')
   const [loginPassword, setLoginPassword] = useState('')
 
-  // signup fields
-  const [name, setName]                     = useState('')
-  const [email, setEmail]                   = useState('')
-  const [phone, setPhone]                   = useState('')
-  const [password, setPwd]                  = useState('')
-  const [confirm, setConfirm]               = useState('')
-  const [flatApartment, setFlatApartment]   = useState('')
-  const [flatNumber, setFlatNumber]         = useState('')
-  const [address, setAddress]               = useState('')
+  // signup — minimal: mobile + password + apartment + flat number
+  const [phone,         setPhone]         = useState('')
+  const [password,      setPwd]           = useState('')
+  const [flatApartment, setFlatApartment] = useState('')
+  const [flatNumber,    setFlatNumber]    = useState('')
+
+  const routeAfterLogin = (role?: string) => {
+    if (role === 'admin') router.push('/admin')
+    else                  router.push('/dashboard')
+    router.refresh()
+  }
 
   const handleLogin = async () => {
     if (!identifier.trim() || !loginPassword) {
-      toast.error('Enter email/phone and password')
+      toast.error('Enter mobile and password')
       return
     }
     setLoading(true)
@@ -43,7 +45,6 @@ export default function AuthForm() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Login failed')
 
-      // Hydrate the browser client's session so middleware sees us on the next nav.
       if (json.session) {
         await getSupabase().auth.setSession({
           access_token:  json.session.access_token,
@@ -51,9 +52,8 @@ export default function AuthForm() {
         })
       }
 
-      toast.success('Welcome back! 🥛')
-      router.push('/dashboard')
-      router.refresh()
+      toast.success(json.profile?.role === 'admin' ? 'Welcome, Admin 👑' : 'Welcome back! 🥛')
+      routeAfterLogin(json.profile?.role)
     } catch (e: any) {
       toast.error(e.message ?? 'Login failed')
     } finally {
@@ -62,19 +62,12 @@ export default function AuthForm() {
   }
 
   const handleSignup = async () => {
-    if (
-      !name.trim() || !email.trim() || !phone.trim() || !password ||
-      !flatApartment.trim() || !flatNumber.trim() || !address.trim()
-    ) {
+    if (!phone.trim() || !password || !flatApartment.trim() || !flatNumber.trim()) {
       toast.error('Fill in all fields')
       return
     }
     if (password.length < 6) {
       toast.error('Password must be at least 6 characters')
-      return
-    }
-    if (password !== confirm) {
-      toast.error('Passwords do not match')
       return
     }
     setLoading(true)
@@ -83,21 +76,13 @@ export default function AuthForm() {
         method:  'POST',
         headers: { 'content-type': 'application/json' },
         body:    JSON.stringify({
-          name, email, phone, password,
+          phone, password,
           flat_apartment: flatApartment,
           flat_number:    flatNumber,
-          address,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Signup failed')
-
-      if (json.needs_confirmation) {
-        toast.success('Account created. Check your email to confirm, then log in.')
-        setMode('login')
-        setIdentifier(email)
-        return
-      }
 
       if (json.session) {
         await getSupabase().auth.setSession({
@@ -107,8 +92,7 @@ export default function AuthForm() {
       }
 
       toast.success('Welcome to Dheera Fresh! 🥛')
-      router.push('/dashboard')
-      router.refresh()
+      routeAfterLogin(json.profile?.role)
     } catch (e: any) {
       toast.error(e.message ?? 'Signup failed')
     } finally {
@@ -122,8 +106,8 @@ export default function AuthForm() {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-card border border-[var(--border)]">
-      <div className="flex mb-6 rounded-xl p-1" style={{ background: 'var(--blue-light)' }}>
+    <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-card border border-[var(--border)]">
+      <div className="flex mb-5 rounded-xl p-1" style={{ background: 'var(--blue-light)' }}>
         {(['login', 'signup'] as Mode[]).map(m => (
           <button
             key={m}
@@ -145,10 +129,12 @@ export default function AuthForm() {
         {mode === 'login' ? (
           <>
             <Field
-              label="Email or mobile number"
+              label="Mobile number"
+              type="tel"
+              inputMode="numeric"
               value={identifier}
               onChange={setIdentifier}
-              placeholder="you@example.com or 9876543210"
+              placeholder="10-digit mobile"
               autoFocus
             />
             <Field
@@ -161,9 +147,22 @@ export default function AuthForm() {
           </>
         ) : (
           <>
-            <Field label="Full name" value={name} onChange={setName} placeholder="Your name" autoFocus />
-            <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-            <Field label="Mobile number" type="tel" value={phone} onChange={setPhone} placeholder="10-digit mobile" />
+            <Field
+              label="Mobile number"
+              type="tel"
+              inputMode="numeric"
+              value={phone}
+              onChange={setPhone}
+              placeholder="10-digit mobile"
+              autoFocus
+            />
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPwd}
+              placeholder="At least 6 characters"
+            />
             <Field
               label="Apartment / Society"
               value={flatApartment}
@@ -176,14 +175,6 @@ export default function AuthForm() {
               onChange={setFlatNumber}
               placeholder="e.g. B-1204"
             />
-            <Field
-              label="Address / Landmark"
-              value={address}
-              onChange={setAddress}
-              placeholder="Street, area, landmark"
-            />
-            <Field label="Password" type="password" value={password} onChange={setPwd} placeholder="At least 6 characters" />
-            <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} placeholder="Re-enter password" />
           </>
         )}
 
@@ -200,7 +191,7 @@ export default function AuthForm() {
 }
 
 function Field({
-  label, value, onChange, placeholder, type = 'text', autoFocus,
+  label, value, onChange, placeholder, type = 'text', autoFocus, inputMode,
 }: {
   label: string
   value: string
@@ -208,6 +199,7 @@ function Field({
   placeholder?: string
   type?: string
   autoFocus?: boolean
+  inputMode?: 'numeric' | 'text' | 'tel' | 'email'
 }) {
   return (
     <label className="block mb-3">
@@ -216,6 +208,7 @@ function Field({
       </span>
       <input
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}

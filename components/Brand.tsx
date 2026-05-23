@@ -7,7 +7,7 @@ export function BrandBanner({ className }: { className?: string }) {
   return (
     <div
       className={clsx(
-        'relative w-full overflow-hidden rounded-3xl border bg-white shadow-card',
+        'relative mx-auto w-32 h-32 sm:w-36 sm:h-36 overflow-hidden rounded-3xl border bg-white shadow-card',
         className,
       )}
       style={{ borderColor: 'var(--border)' }}
@@ -15,11 +15,11 @@ export function BrandBanner({ className }: { className?: string }) {
       <Image
         src={BRAND_IMG}
         alt="Dheera Fresh Milk — Farm to Home Delivery"
-        width={1200}
-        height={800}
+        width={288}
+        height={288}
         priority
-        sizes="(min-width: 1024px) 32rem, 100vw"
-        className="w-full h-auto"
+        sizes="144px"
+        className="w-full h-full object-cover"
       />
     </div>
   )

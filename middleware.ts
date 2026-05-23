@@ -28,22 +28,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth', request.url))
   }
 
-  // Redirect authenticated away from auth page
-  if (session && isAuthPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  // Admin gate
-  if (session && isAdminRoute) {
+  // Resolve role once and route accordingly.
+  let role: string | undefined
+  if (session && (isAuthPage || isAdminRoute || pathname === '/dashboard')) {
     const { data: profile } = await supabase
       .from('users')
       .select('role')
       .eq('auth_id', session.user.id)
       .single()
+    role = profile?.role
+  }
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
+  // Authed user landing on /auth → bounce to the right home.
+  if (session && isAuthPage) {
+    return NextResponse.redirect(new URL(role === 'admin' ? '/admin' : '/dashboard', request.url))
+  }
+
+  // Admins shouldn't accidentally land on the customer home.
+  if (session && pathname === '/dashboard' && role === 'admin') {
+    return NextResponse.redirect(new URL('/admin', request.url))
+  }
+
+  // Admin gate for /admin/*
+  if (session && isAdminRoute && role !== 'admin') {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response

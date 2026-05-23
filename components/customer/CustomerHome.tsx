@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useSubscription } from '@/hooks/useSubscription'
 import { fmt, fmtDate, WHATSAPP_URL } from '@/lib/constants'
@@ -8,21 +9,27 @@ import Card       from '@/components/ui/Card'
 import Button     from '@/components/ui/Button'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
+import PauseDialog from '@/components/customer/PauseDialog'
 
 export default function CustomerHome() {
-  const { user } = useAuth()
-  const { subscription, todayDelivery, invoices, loading, pause, resume } =
+  const { user, loading: authLoading } = useAuth()
+  const { subscription, todayDelivery, invoices, loading: subLoading, resume } =
     useSubscription(user?.id ?? null)
+  const [pauseOpen, setPauseOpen] = useState(false)
 
   const hour     = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const greeting = hour < 5 ? 'Good evening'
+                 : hour < 12 ? 'Good morning'
+                 : hour < 17 ? 'Good afternoon'
+                 : 'Good evening'
   const pending  = invoices.find(i => i.payment_status !== 'paid')
 
-  if (loading) return (
-    <div className="space-y-4">
-      <SkeletonCard /> <SkeletonCard /> <SkeletonCard />
-    </div>
-  )
+  // Auth gate first — until profile resolves we don't know if there's a
+  // subscription. Avoid flashing the "Subscribe" CTA between auth and
+  // subscription queries by waiting for both.
+  if (authLoading || subLoading) return <HomeSkeleton />
+
+
 
   const milkEmoji = (t: string) => t === 'cow' ? '🐄' : t === 'buffalo' ? '🐃' : '🌾'
   const qtyLabel  = (ml: number) => ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`
@@ -83,7 +90,7 @@ export default function CustomerHome() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {subscription.status === 'active' ? (
-              <Button variant="outline" size="sm" onClick={() => pause(subscription.id)}>
+              <Button variant="outline" size="sm" onClick={() => setPauseOpen(true)}>
                 ⏸ Pause
               </Button>
             ) : subscription.status === 'paused' ? (
@@ -208,6 +215,21 @@ export default function CustomerHome() {
         )}
       </div>
 
+      {/* Need help? */}
+      <Card style={{ background: '#ECFDF5', borderColor: '#A7F3D0' }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-bold text-sm" style={{ color: '#065F46' }}>Need help?</p>
+            <p className="text-xs mt-0.5" style={{ color: '#047857' }}>
+              Reach our team on WhatsApp · +91 96205 44988
+            </p>
+          </div>
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+            <Button variant="whatsapp" size="sm">💬 Chat</Button>
+          </a>
+        </div>
+      </Card>
+
       {/* Recent invoices */}
       {invoices.length > 0 && (
         <div>
@@ -235,6 +257,32 @@ export default function CustomerHome() {
           </Link>
         </div>
       )}
+
+      {subscription && (
+        <PauseDialog
+          open={pauseOpen}
+          onClose={() => setPauseOpen(false)}
+          subscriptionId={subscription.id}
+        />
+      )}
+    </div>
+  )
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* greeting */}
+      <div className="space-y-2">
+        <div className="skeleton h-3 w-28" />
+        <div className="skeleton h-7 w-48" />
+      </div>
+      <SkeletonCard />
+      <SkeletonCard />
+      <div className="grid grid-cols-3 gap-3">
+        <SkeletonCard /><SkeletonCard /><SkeletonCard />
+      </div>
+      <SkeletonCard />
     </div>
   )
 }

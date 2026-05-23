@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { fmtDate, WHATSAPP_NUMBER } from '@/lib/constants'
-import type { DbUser } from '@/types'
-import Card       from '@/components/ui/Card'
+import Link from 'next/link'
+import { fmtDate } from '@/lib/constants'
 import Button     from '@/components/ui/Button'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
@@ -15,7 +14,6 @@ export default function AdminCustomers() {
   const [search,    setSearch]    = useState('')
   const [page,      setPage]      = useState(1)
   const [total,     setTotal]     = useState(0)
-  const [selected,  setSelected]  = useState<DbUser | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -103,9 +101,9 @@ export default function AdminCustomers() {
                     <td className="px-4 py-3"><StatusBadge status={c.is_active ? 'active' : 'cancelled'} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button onClick={() => setSelected(c)} title="View details"
+                        <Link href={`/admin/customers/${c.id}`} title="View details"
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all hover:opacity-80"
-                          style={{ background: '#EFF6FF', color: '#1D4ED8' }}>👁</button>
+                          style={{ background: '#EFF6FF', color: '#1D4ED8' }}>👁</Link>
                         <button
                           onClick={() => toggleActive(c.id, c.is_active)}
                           title={c.is_active ? 'Deactivate' : 'Activate'}
@@ -135,46 +133,6 @@ export default function AdminCustomers() {
         </div>
       )}
 
-      {/* Detail modal */}
-      {selected && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4"
-          onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between mb-4">
-              <h3 className="font-bold text-lg" style={{ color: 'var(--blue-deep)' }}>Customer Details</h3>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ background: 'var(--blue-light)' }}>
-              <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white"
-                style={{ background: 'linear-gradient(135deg,var(--blue),var(--blue-mid))' }}>
-                {selected.name?.[0]?.toUpperCase() ?? '?'}
-              </div>
-              <div>
-                <p className="font-bold" style={{ color: 'var(--blue-deep)' }}>{selected.name ?? 'No name'}</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>+91 {selected.mobile}</p>
-              </div>
-            </div>
-            {[
-              ['Email',   selected.email   ?? '—'],
-              ['Address', selected.address ?? '—'],
-              ['Area',    selected.area    ?? '—'],
-              ['Joined',  fmtDate(selected.created_at)],
-              ['Status',  selected.is_active ? 'Active' : 'Inactive'],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between py-2.5 border-b" style={{ borderColor: 'rgba(13,59,159,0.08)' }}>
-                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{k}</span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--blue-deep)' }}>{v}</span>
-              </div>
-            ))}
-            <div className="flex gap-2 mt-4">
-              <a href={`https://wa.me/91${selected.mobile}`} target="_blank" rel="noopener noreferrer" className="flex-1">
-                <Button variant="whatsapp" full>💬 WhatsApp</Button>
-              </a>
-              <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

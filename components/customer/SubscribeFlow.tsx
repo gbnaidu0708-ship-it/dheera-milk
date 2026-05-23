@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
+import { useSubscription } from '@/hooks/useSubscription'
 import {
   PRODUCTS,
   QTY_OPTIONS,
@@ -16,12 +18,20 @@ import {
 import type { MilkType } from '@/types'
 import Card   from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import { SkeletonCard } from '@/components/ui/Skeleton'
 
 type QtyChoice = number | 'custom'
 
+const STD_QTYS = QTY_OPTIONS.map(o => o.value)
+
 export default function SubscribeFlow() {
-  useAuth() // ensure auth state is mounted; user is authorized via middleware
+  const { user, loading: authLoading } = useAuth()
+  const { subscription, loading: subLoading } = useSubscription(user?.id ?? null)
   const router = useRouter()
+  const qc = useQueryClient()
+
+  const isModify = !!subscription
+  const [ready, setReady] = useState(false)
 
   const [step,      setStep]      = useState(1)
   const [milkType,  setMilkType]  = useState<MilkType>('cow')
@@ -29,6 +39,22 @@ export default function SubscribeFlow() {
   const [customQty, setCustomQty] = useState<string>(String(QTY_CUSTOM_MIN_ML))
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [loading,   setLoading]   = useState(false)
+
+  // Seed form from the active subscription when we're in modify mode.
+  useEffect(() => {
+    if (authLoading || subLoading) return
+    if (subscription) {
+      setMilkType(subscription.milk_type)
+      if (STD_QTYS.includes(subscription.quantity_ml)) {
+        setQtyChoice(subscription.quantity_ml)
+      } else {
+        setQtyChoice('custom')
+        setCustomQty(String(subscription.quantity_ml))
+      }
+      setStartDate(subscription.start_date)
+    }
+    setReady(true)
+  }, [authLoading, subLoading, subscription])
 
   const resolvedQty = qtyChoice === 'custom' ? Number(customQty) : qtyChoice
   const qtyValid =
@@ -41,7 +67,41 @@ export default function SubscribeFlow() {
   const price = qtyValid ? calcPrice(milkType, resolvedQty) : 0
   const qtyLabel = (ml: number) => (ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`)
 
-  const handleSubmit = async () => {
+  const unchanged = useMemo(() => {
+    if (!subscription) return false
+    return (
+      subscription.milk_type === milkType &&
+      subscription.quantity_ml === resolvedQty &&
+      subscription.start_date === startDate
+    )
+  }, [subscription, milkType, resolvedQty, startDate])
+
+  const modifyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/subscriptions', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id:          subscription!.id,
+          milk_type:   milkType,
+          quantity_ml: resolvedQty,
+          start_date:  startDate,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      return json.data
+    },
+    onSuccess: () => {
+      toast.success('Subscription updated 🥛')
+      // Cover both the home queries and the per-user subscription/today caches.
+      qc.invalidateQueries({ queryKey: ['customer'] })
+      router.push('/dashboard')
+    },
+    onError: (e: any) => toast.error(e.message ?? 'Something went wrong'),
+  })
+
+  const createSubscription = async () => {
     if (!qtyValid) {
       toast.error(`Enter a quantity between ${QTY_CUSTOM_MIN_ML}ml and ${QTY_MAX_ML}ml in 500ml steps`)
       return
@@ -61,6 +121,7 @@ export default function SubscribeFlow() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
       toast.success(`Subscribed! ${json.schedules_created} deliveries scheduled 🥛`)
+      qc.invalidateQueries({ queryKey: ['customer'] })
       router.push('/dashboard')
     } catch (e: any) {
       toast.error(e.message ?? 'Something went wrong')
@@ -69,15 +130,39 @@ export default function SubscribeFlow() {
     }
   }
 
+  const handleSubmit = () => {
+    if (isModify) {
+      if (unchanged) {
+        toast('No changes to save', { icon: 'ℹ️' })
+        return
+      }
+      modifyMutation.mutate()
+    } else {
+      createSubscription()
+    }
+  }
+
+  if (authLoading || subLoading || !ready) {
+    return (
+      <div className="space-y-3">
+        <SkeletonCard /><SkeletonCard /><SkeletonCard />
+      </div>
+    )
+  }
+
+  const submitting = loading || modifyMutation.isPending
+
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Header + progress */}
       <div>
         <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--blue-deep)' }}>
-          Monthly Subscription
+          {isModify ? 'Modify Subscription' : 'Monthly Subscription'}
         </h1>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Daily delivery, billed monthly. Pause up to 7 days per month.
+          {isModify
+            ? 'Update your plan. Changes apply to future deliveries.'
+            : 'Daily delivery, billed monthly. Pause anytime.'}
         </p>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Step {step} of 3</p>
         <div className="flex gap-1 mt-2">
@@ -186,7 +271,9 @@ export default function SubscribeFlow() {
           </div>
 
           <div>
-            <p className="font-bold mb-2" style={{ color: 'var(--blue-deep)' }}>Start date</p>
+            <p className="font-bold mb-2" style={{ color: 'var(--blue-deep)' }}>
+              {isModify ? 'Effective from' : 'Start date'}
+            </p>
             <input
               type="date"
               value={startDate}
@@ -213,7 +300,7 @@ export default function SubscribeFlow() {
               ['Milk Type',     milkType.charAt(0).toUpperCase() + milkType.slice(1) + ' Milk'],
               ['Quantity',      qtyLabel(resolvedQty)],
               ['Plan',          'Monthly (daily delivery)'],
-              ['Start Date',    startDate],
+              [isModify ? 'Effective From' : 'Start Date', startDate],
               ['Price / Day',   fmt(price)],
               ['Est. Monthly',  fmt(price * 30)],
             ].map(([k, v]) => (
@@ -226,14 +313,14 @@ export default function SubscribeFlow() {
 
           <Card style={{ background: 'var(--green-pale)', borderColor: 'var(--green)' }}>
             <p className="text-sm font-semibold" style={{ color: 'var(--green)' }}>
-              🥛 Fresh milk delivered to your door by 6 AM, every day. Pause up to 7 days per month from your calendar.
+              🥛 Fresh milk delivered to your door by 6 AM, every day. Pause anytime from the home screen.
             </p>
           </Card>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(2)}>← Back</Button>
-            <Button full loading={loading} onClick={handleSubmit}>
-              Confirm Subscription 🎉
+            <Button full loading={submitting} onClick={handleSubmit}>
+              {isModify ? 'Save changes' : 'Confirm Subscription 🎉'}
             </Button>
           </div>
         </div>

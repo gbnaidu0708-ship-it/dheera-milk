@@ -91,7 +91,23 @@ export function useSubscription(userId: string | null) {
     },
     onSuccess: () => {
       if (!userId) return
-      qc.invalidateQueries({ queryKey: keys.subscription(userId) })
+      qc.invalidateQueries({ queryKey: ['customer'] })
+    },
+  })
+
+  const resumeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch('/api/subscriptions/resume', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ subscription_id: id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+    },
+    onSuccess: () => {
+      if (!userId) return
+      qc.invalidateQueries({ queryKey: ['customer'] })
     },
   })
 
@@ -101,7 +117,7 @@ export function useSubscription(userId: string | null) {
     invoices:      invoicesQ.data ?? [],
     loading:       enabled && (subscriptionQ.isPending || todayQ.isPending || invoicesQ.isPending),
     pause:  (id: string) => setStatusMutation.mutateAsync({ id, status: 'paused'    }),
-    resume: (id: string) => setStatusMutation.mutateAsync({ id, status: 'active'    }),
+    resume: (id: string) => resumeMutation.mutateAsync(id),
     cancel: (id: string) => setStatusMutation.mutateAsync({ id, status: 'cancelled' }),
     reload: () => {
       if (!userId) return

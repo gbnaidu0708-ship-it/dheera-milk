@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { PAUSE_DAYS_PER_MONTH, PAUSE_CUTOFF_HOUR } from '@/lib/constants'
+import { recordEvent } from '@/lib/audit'
 
 const schema = z.object({
   delivery_id: z.string().uuid(),
@@ -83,6 +84,14 @@ export async function POST(req: NextRequest) {
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await recordEvent(
+      sb,
+      profile.id,
+      action === 'pause' ? 'delivery_paused' : 'delivery_unpaused',
+      { delivery_id, date: row.delivery_date },
+    )
+
     return NextResponse.json({ data })
   } catch (e: any) {
     const msg = e?.issues?.[0]?.message ?? e?.message ?? 'Failed'
