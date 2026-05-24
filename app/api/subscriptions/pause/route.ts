@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { recordEvent } from '@/lib/audit'
+import { recalcInvoice } from '@/lib/invoices'
 
 // Date range OR whole-month pause. Marks the matching delivery_schedules rows
 // as 'skipped'. If the range spans every remaining day of an active sub, the
@@ -38,8 +39,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '"From" date must be on or before "To"' }, { status: 400 })
     }
     const today = new Date().toISOString().split('T')[0]
-    if (from < today) {
-      return NextResponse.json({ error: 'Cannot pause past deliveries' }, { status: 400 })
+    if (from <= today) {
+      return NextResponse.json(
+        { error: 'Current day cannot be paused — pauses apply from tomorrow' },
+        { status: 400 },
+      )
     }
 
     const { data: sub, error: subErr } = await sb
@@ -71,6 +75,17 @@ export async function POST(req: NextRequest) {
 
     if ((remaining ?? 0) === 0) {
       await sb.from('subscriptions').update({ status: 'paused' }).eq('id', sub.id)
+    }
+
+    // Recalc each affected month's invoice so totals/amount reflect the pause.
+    const months = new Set<string>()
+    for (const row of skipped ?? []) {
+      const [y, m] = row.delivery_date.split('-').map(Number)
+      months.add(`${y}-${m}`)
+    }
+    for (const key of Array.from(months)) {
+      const [y, m] = key.split('-').map(Number)
+      await recalcInvoice(sb, profile.id, y, m)
     }
 
     await recordEvent(sb, profile.id, 'subscription_paused', {

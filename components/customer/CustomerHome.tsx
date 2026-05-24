@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useSubscription } from '@/hooks/useSubscription'
 import { fmt, fmtDate, WHATSAPP_URL } from '@/lib/constants'
@@ -10,12 +11,15 @@ import Button     from '@/components/ui/Button'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import PauseDialog from '@/components/customer/PauseDialog'
+import UpiPaymentCard from '@/components/customer/UpiPaymentCard'
 
 export default function CustomerHome() {
   const { user, loading: authLoading } = useAuth()
-  const { subscription, todayDelivery, invoices, loading: subLoading, resume } =
+  const { subscription, todayDelivery, invoices, monthStats, loading: subLoading, resume } =
     useSubscription(user?.id ?? null)
   const [pauseOpen, setPauseOpen] = useState(false)
+  const params      = useSearchParams()
+  const showUpiTop  = params?.get('upi') === '1'
 
   const hour     = new Date().getHours()
   const greeting = hour < 5 ? 'Good evening'
@@ -88,16 +92,33 @@ export default function CustomerHome() {
             </div>
             <StatusBadge status={subscription.status} />
           </div>
+
+          {/* This-month snapshot — always reflects the live status (post-pause too). */}
+          <div className="grid grid-cols-4 gap-1.5 mb-3">
+            {[
+              { label: 'Total',     val: monthStats.total,     color: '#082567', bg: '#EAF4FF' },
+              { label: 'Delivered', val: monthStats.delivered, color: '#065F46', bg: '#D1FAE5' },
+              { label: 'Upcoming',  val: monthStats.upcoming,  color: '#1D4ED8', bg: '#EFF6FF' },
+              { label: 'Paused',    val: monthStats.skipped,   color: '#374151', bg: '#F3F4F6' },
+            ].map(s => (
+              <div key={s.label} className="rounded-lg p-1.5 text-center" style={{ background: s.bg }}>
+                <p className="font-bold text-sm" style={{ color: s.color }}>{s.val}</p>
+                <p className="text-[9px] font-semibold opacity-70" style={{ color: s.color }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+
           <div className="flex gap-2 flex-wrap">
-            {subscription.status === 'active' ? (
+            {subscription.status !== 'cancelled' && (
               <Button variant="outline" size="sm" onClick={() => setPauseOpen(true)}>
-                ⏸ Pause
+                ⏸ Pause / Resume
               </Button>
-            ) : subscription.status === 'paused' ? (
+            )}
+            {subscription.status === 'paused' && (
               <Button variant="success" size="sm" onClick={() => resume(subscription.id)}>
-                ▶ Resume
+                ▶ Resume rest of month
               </Button>
-            ) : null}
+            )}
             <Link href="/dashboard/subscribe">
               <Button variant="ghost" size="sm">Modify Plan</Button>
             </Link>
@@ -167,21 +188,32 @@ export default function CustomerHome() {
         </div>
       </div>
 
-      {/* Pending payment alert */}
-      {pending && (
-        <Card style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-bold text-sm" style={{ color: '#92400E' }}>⚠️ Payment Pending</p>
-              <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>
-                {fmt(pending.pending_amount)} due for {pending.month}/{pending.year}
-              </p>
+      {/* Just-subscribed UPI invitation. Shows once when we land here with ?upi=1. */}
+      {showUpiTop && subscription && (
+        <UpiPaymentCard
+          amount={pending?.pending_amount}
+          note="Subscription created 🎉 You can pay now or pay by the end of the current month."
+        />
+      )}
+
+      {/* Pending payment alert + UPI panel */}
+      {pending && !showUpiTop && (
+        <>
+          <Card style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm" style={{ color: '#92400E' }}>⚠️ Payment Pending</p>
+                <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>
+                  {fmt(pending.pending_amount)} due for {pending.month}/{pending.year}
+                </p>
+              </div>
+              <Link href="/dashboard/billing">
+                <Button size="sm" variant="outline">Pay Now</Button>
+              </Link>
             </div>
-            <Link href="/dashboard/billing">
-              <Button size="sm" variant="outline">Pay Now</Button>
-            </Link>
-          </div>
-        </Card>
+          </Card>
+          <UpiPaymentCard amount={pending.pending_amount} compact />
+        </>
       )}
 
       {/* Quick actions */}

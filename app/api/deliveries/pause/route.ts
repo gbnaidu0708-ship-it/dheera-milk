@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
 import { z } from 'zod'
-import { PAUSE_DAYS_PER_MONTH, PAUSE_CUTOFF_HOUR } from '@/lib/constants'
+import { PAUSE_CUTOFF_HOUR } from '@/lib/constants'
 import { recordEvent } from '@/lib/audit'
+import { recalcInvoice } from '@/lib/invoices'
 
 const schema = z.object({
   delivery_id: z.string().uuid(),
@@ -52,28 +53,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (action === 'pause') {
-      if (row.status === 'skipped') {
-        return NextResponse.json({ data: row })
-      }
-      const [y, m] = row.delivery_date.split('-').map(Number)
-      const start  = `${y}-${String(m).padStart(2, '0')}-01`
-      const last   = new Date(Date.UTC(y, m, 0)).toISOString().split('T')[0]
-
-      const { count } = await sb
-        .from('delivery_schedules')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('status', 'skipped')
-        .gte('delivery_date', start)
-        .lte('delivery_date', last)
-
-      if ((count ?? 0) >= PAUSE_DAYS_PER_MONTH) {
-        return NextResponse.json(
-          { error: `Limit reached: max ${PAUSE_DAYS_PER_MONTH} pause days per month` },
-          { status: 400 },
-        )
-      }
+    if (action === 'pause' && row.status === 'skipped') {
+      return NextResponse.json({ data: row })
     }
 
     const nextStatus = action === 'pause' ? 'skipped' : 'scheduled'
@@ -84,6 +65,10 @@ export async function POST(req: NextRequest) {
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Refresh the month's invoice so totals reflect the toggled day.
+    const [yy, mm] = row.delivery_date.split('-').map(Number)
+    await recalcInvoice(sb, profile.id, yy, mm)
 
     await recordEvent(
       sb,

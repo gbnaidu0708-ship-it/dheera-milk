@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { getSupabase } from '@/lib/supabase'
@@ -9,6 +10,7 @@ import Card       from '@/components/ui/Card'
 import Button     from '@/components/ui/Button'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
+import UpiPaymentCard from '@/components/customer/UpiPaymentCard'
 import toast from 'react-hot-toast'
 
 export default function BillingView() {
@@ -86,11 +88,16 @@ export default function BillingView() {
 
   if (loading) return <div className="space-y-3"><SkeletonCard /><SkeletonCard /></div>
 
+  const totalPending = invoices.reduce((s, i) => s + Number(i.pending_amount), 0)
+  const hasPending   = totalPending > 0
+
   return (
     <div className="space-y-4 animate-fade-up">
       <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--blue-deep)' }}>
         Billing &amp; Payments
       </h1>
+
+      {hasPending && <UpiPaymentCard amount={totalPending} />}
 
       {invoices.length === 0 ? (
         <Card className="text-center py-12">
@@ -134,14 +141,27 @@ export default function BillingView() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
+                <Link href={`/dashboard/billing/${inv.id}`}>
+                  <Button variant="outline" size="sm">📦 View details</Button>
+                </Link>
                 {inv.pending_amount > 0 && (
                   <Button variant="whatsapp" size="sm" onClick={() => payViaWhatsApp(inv)}>
                     💬 Pay via WhatsApp
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => downloadPDF(inv)}>
-                  ⬇ Download PDF
-                </Button>
+                {inv.payment_status === 'paid' ? (
+                  <Button variant="ghost" size="sm" onClick={() => downloadPDF(inv)}>
+                    ⬇ Download PDF
+                  </Button>
+                ) : (
+                  <span
+                    className="text-[11px] font-semibold px-3 py-1.5 rounded-lg"
+                    title="Available once payment is recorded"
+                    style={{ background: '#FFF3CD', color: '#856404' }}
+                  >
+                    Invoice Pending — pay to enable download
+                  </span>
+                )}
               </div>
             </Card>
           ))}

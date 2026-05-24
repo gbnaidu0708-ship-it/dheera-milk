@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, getProfile } from '@/lib/supabase-server'
 import { recordEvent } from '@/lib/audit'
+import { recalcInvoice } from '@/lib/invoices'
+import { monthFirstDay, monthLastDay } from '@/lib/month'
 
 export async function GET(req: NextRequest) {
   const sb      = createServerSupabase()
@@ -25,9 +27,8 @@ export async function POST(req: NextRequest) {
   if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { user_id, month, year } = await req.json()
-
-  const start = `${year}-${String(month).padStart(2, '0')}-01`
-  const last  = new Date(Number(year), Number(month), 0).toISOString().split('T')[0]
+  const start = monthFirstDay(Number(year), Number(month))
+  const last  = monthLastDay(Number(year), Number(month))
 
   // Invoices are only generated for monthly-subscribed customers. A user
   // qualifies if they have a 'daily' subscription that overlaps this billing
@@ -48,30 +49,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { data: deliveries } = await sb
-    .from('delivery_schedules')
-    .select('*, subscription:subscriptions(price_per_unit,quantity_ml)')
-    .eq('user_id', user_id)
-    .eq('status', 'delivered')
-    .gte('delivery_date', start)
-    .lte('delivery_date', last)
-
-  if (!deliveries?.length) return NextResponse.json({ error: 'No delivered deliveries found for this period' }, { status: 400 })
-
-  const total_amount = deliveries.reduce((s, d) => s + Number((d.subscription as any)?.price_per_unit ?? 0), 0)
-  const total_liters = deliveries.reduce((s, d) => s + d.quantity_ml / 1000, 0)
-  const due_date     = new Date(Number(year), Number(month), 10).toISOString().split('T')[0]
-
-  const { data, error } = await sb
-    .from('invoices')
-    .upsert(
-      { user_id, month, year, total_deliveries: deliveries.length, total_liters, total_amount, paid_amount: 0, due_date },
-      { onConflict: 'user_id,month,year' }
+  const data = await recalcInvoice(sb, user_id, Number(year), Number(month))
+  if (!data) {
+    return NextResponse.json(
+      { error: 'No deliveries to invoice for this period' },
+      { status: 400 },
     )
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   await recordEvent(sb, user_id, 'invoice_generated', {
     invoice_id:   data.id,

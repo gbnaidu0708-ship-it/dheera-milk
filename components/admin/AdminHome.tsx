@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useQuery } from '@tanstack/react-query'
 import { fmt } from '@/lib/constants'
 import type { AdminStats } from '@/types'
 import Card from '@/components/ui/Card'
@@ -9,15 +9,19 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 import AdminNotifications from '@/components/admin/AdminNotifications'
 
 export default function AdminHome() {
-  const [stats,   setStats]   = useState<AdminStats | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/admin/dashboard')
-      .then(r => r.json())
-      .then(j => { setStats(j.data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  const { data: stats = null, isPending } = useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: async () => {
+      const res  = await fetch('/api/admin/dashboard')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      return json.data as AdminStats
+    },
+    // Stats don't change second-to-second; let react-query cache them
+    // briefly to avoid refetching on every nav back to /admin.
+    staleTime: 60_000,
+  })
+  const loading = isPending
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -27,15 +31,9 @@ export default function AdminHome() {
     { label: 'Total Customers',       value: stats.total_customers,                   icon: '👥', bg: '#EAF4FF', color: '#082567' },
     { label: 'Active Subscriptions',  value: stats.active_subscriptions,              icon: '🥛', bg: '#D1FAE5', color: '#065F46' },
     { label: "Today's Deliveries",    value: `${stats.today_delivered}/${stats.today_deliveries}`, icon: '🚚', bg: '#EFF6FF', color: '#1D4ED8' },
+    { label: 'Upcoming (this month)', value: stats.month_upcoming,                    icon: '📅', bg: '#F0F4FF', color: '#082567' },
     { label: 'Monthly Revenue',       value: fmt(stats.monthly_revenue),              icon: '💰', bg: '#E6F5EB', color: '#1E8E3E' },
     { label: 'Pending Payments',      value: fmt(stats.pending_payments),             icon: '⚠️', bg: '#FFF3CD', color: '#856404' },
-    {
-      label: 'Delivery Rate',
-      value: stats.today_deliveries > 0
-        ? `${Math.round((stats.today_delivered / stats.today_deliveries) * 100)}%`
-        : '—',
-      icon: '📈', bg: '#F0F4FF', color: '#082567',
-    },
   ] : []
 
   const quickLinks = [

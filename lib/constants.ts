@@ -5,6 +5,10 @@ export const WHATSAPP_URL    = `https://wa.me/${WHATSAPP_NUMBER}`
 export const APP_NAME        = 'Dheera Fresh Milk'
 export const APP_URL         = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dheerafreshmilk.com'
 
+// UPI payment details displayed after subscribe and on the billing screen.
+export const UPI_ID      = 'gbnaidu0708@ybl'
+export const UPI_QR_PATH = '/assets/pay-qr.jpeg'
+
 // Price per 1 litre (1000 ml) — the canonical pricing unit.
 export const MILK_PRICE: Record<string, number> = {
   cow:     60,
@@ -57,8 +61,8 @@ export const QTY_MAX_ML        = 20000  // matches the DB CHECK upper bound
 // The MVP supports only a Monthly Subscription. Older 'alternate'/'custom'
 // values remain in the schema for backward-compat with existing rows but are
 // no longer offered in the UI; new subscriptions always write plan_type='daily'.
-export const PAUSE_DAYS_PER_MONTH = 7
-export const PAUSE_CUTOFF_HOUR    = 20  // 8 PM local time, previous day
+// No monthly pause cap — customers can pause any number of future days.
+export const PAUSE_CUTOFF_HOUR = 20  // 8 PM local time, previous day
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 export function fmt(amount: number) {

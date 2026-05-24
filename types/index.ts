@@ -118,6 +118,10 @@ export interface AdminStats {
   active_subscriptions:number
   today_deliveries:    number
   today_delivered:     number
+  month_deliveries:    number
+  month_delivered:     number
+  month_upcoming:      number
+  month_skipped:       number
   monthly_revenue:     number
   pending_payments:    number
 }

@@ -6,11 +6,23 @@ import { getSupabase } from '@/lib/supabase'
 import type { DbSubscription, DbDelivery, DbInvoice } from '@/types'
 
 const todayIso = () => new Date().toISOString().split('T')[0]
+function monthBounds() {
+  const t   = new Date()
+  const y   = t.getFullYear()
+  const m   = t.getMonth() + 1
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    start: `${y}-${pad(m)}-01`,
+    end:   new Date(y, m, 0).toISOString().split('T')[0],
+    key:   `${y}-${pad(m)}`,
+  }
+}
 
 const keys = {
   subscription: (userId: string) => ['customer', 'subscription', userId] as const,
   today:        (userId: string) => ['customer', 'today',        userId, todayIso()] as const,
   invoices:     (userId: string) => ['customer', 'invoices',     userId] as const,
+  monthStats:   (userId: string) => ['customer', 'month-stats',  userId, monthBounds().key] as const,
 }
 
 export function useSubscription(userId: string | null) {
@@ -67,6 +79,32 @@ export function useSubscription(userId: string | null) {
     },
   })
 
+  // Aggregated counts for the current calendar month — drives the "this month"
+  // summary on the home plan card after a pause/resume.
+  const monthStatsQ = useQuery({
+    queryKey: enabled ? keys.monthStats(userId!) : ['customer', 'month-stats', null],
+    enabled,
+    queryFn: async () => {
+      const sb = getSupabase()
+      const { start, end } = monthBounds()
+      const { data, error } = await sb
+        .from('delivery_schedules')
+        .select('status, delivery_date')
+        .eq('user_id', userId!)
+        .gte('delivery_date', start)
+        .lte('delivery_date', end)
+      if (error) throw error
+      const today = todayIso()
+      const rows = data ?? []
+      return {
+        total:     rows.length,
+        delivered: rows.filter(r => r.status === 'delivered').length,
+        upcoming:  rows.filter(r => r.status === 'scheduled' && r.delivery_date >= today).length,
+        skipped:   rows.filter(r => r.status === 'skipped').length,
+      }
+    },
+  })
+
   // Realtime → invalidate the relevant queries. Browser-only.
   useEffect(() => {
     if (!userId) return
@@ -74,7 +112,10 @@ export function useSubscription(userId: string | null) {
     const ch = sb.channel(`customer-rt-${userId}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_schedules', filter: `user_id=eq.${userId}` },
-        () => { qc.invalidateQueries({ queryKey: keys.today(userId) }) })
+        () => {
+          qc.invalidateQueries({ queryKey: keys.today(userId) })
+          qc.invalidateQueries({ queryKey: keys.monthStats(userId) })
+        })
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${userId}` },
         () => { qc.invalidateQueries({ queryKey: keys.subscription(userId) }) })
@@ -95,12 +136,17 @@ export function useSubscription(userId: string | null) {
     },
   })
 
+  // Resume the rest of the current month — the most common case from the
+  // Home "Resume" button. The dialog has its own granular path.
   const resumeMutation = useMutation({
     mutationFn: async (id: string) => {
+      const t      = new Date()
+      const today  = t.toISOString().split('T')[0]
+      const end    = new Date(t.getFullYear(), t.getMonth() + 1, 0).toISOString().split('T')[0]
       const res = await fetch('/api/subscriptions/resume', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ subscription_id: id }),
+        body: JSON.stringify({ subscription_id: id, from: today, to: end }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
@@ -115,6 +161,7 @@ export function useSubscription(userId: string | null) {
     subscription:  subscriptionQ.data ?? null,
     todayDelivery: todayQ.data ?? null,
     invoices:      invoicesQ.data ?? [],
+    monthStats:    monthStatsQ.data ?? { total: 0, delivered: 0, upcoming: 0, skipped: 0 },
     loading:       enabled && (subscriptionQ.isPending || todayQ.isPending || invoicesQ.isPending),
     pause:  (id: string) => setStatusMutation.mutateAsync({ id, status: 'paused'    }),
     resume: (id: string) => resumeMutation.mutateAsync(id),
@@ -124,6 +171,7 @@ export function useSubscription(userId: string | null) {
       qc.invalidateQueries({ queryKey: keys.subscription(userId) })
       qc.invalidateQueries({ queryKey: keys.today(userId) })
       qc.invalidateQueries({ queryKey: keys.invoices(userId) })
+      qc.invalidateQueries({ queryKey: keys.monthStats(userId) })
     },
   }
 }

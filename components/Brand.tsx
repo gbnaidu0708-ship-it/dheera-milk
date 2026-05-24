@@ -49,7 +49,7 @@ export function BrandMark({
         🥛
       </span>
       <span className="font-display font-extrabold" style={{ color: 'var(--blue-deep)' }}>
-        Dheera <span style={{ color: 'var(--green)' }}>Fresh</span>
+        Dheera <span style={{ color: 'var(--green)' }}>Fresh Milk</span>
       </span>
     </span>
   )

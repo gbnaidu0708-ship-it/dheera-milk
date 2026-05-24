@@ -34,7 +34,7 @@ export default function Navbar() {
           className="font-display font-extrabold text-[22px] tracking-tight"
           style={{ color: 'var(--blue-deep)' }}
         >
-          Dheera <span style={{ color: 'var(--green)' }}>Fresh</span>
+          Dheera <span style={{ color: 'var(--green)' }}>Fresh Milk</span>
         </span>
       </div>
 

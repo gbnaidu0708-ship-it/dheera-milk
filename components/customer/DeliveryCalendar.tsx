@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
+import { useSubscription } from '@/hooks/useSubscription'
 import { getSupabase } from '@/lib/supabase'
-import { PAUSE_DAYS_PER_MONTH, PAUSE_CUTOFF_HOUR } from '@/lib/constants'
+import { PAUSE_CUTOFF_HOUR } from '@/lib/constants'
 import type { DbDelivery } from '@/types'
 import Card       from '@/components/ui/Card'
 import Button     from '@/components/ui/Button'
@@ -25,17 +26,24 @@ function pauseCutoffPassed(deliveryDate: string): boolean {
 }
 
 const DOT: Record<string, string> = {
-  delivered: '#10B981', scheduled: '#3B82F6', skipped: '#9CA3AF', failed: '#EF4444',
+  delivered: '#10B981', scheduled: '#3B82F6', skipped: '#9CA3AF',
 }
 
 export default function DeliveryCalendar() {
   const { user } = useAuth()
   const qc = useQueryClient()
+  const { subscription } = useSubscription(user?.id ?? null)
   const [month,    setMonth]    = useState(new Date())
   const [selected, setSelected] = useState<DbDelivery | null>(null)
 
   const start = format(startOfMonth(month), 'yyyy-MM-dd')
   const end   = format(endOfMonth(month),   'yyyy-MM-dd')
+
+  // Don't let the customer browse months before their joining month.
+  const joinDate     = subscription?.start_date ?? null
+  const joinMonthKey = joinDate ? joinDate.slice(0, 7) : null            // YYYY-MM
+  const currMonthKey = format(month, 'yyyy-MM')
+  const canGoBack    = !joinMonthKey || currMonthKey > joinMonthKey
 
   const { data: schedules = [], isPending } = useQuery({
     queryKey: ['customer', 'schedules', user?.id ?? null, start, end],
@@ -58,13 +66,18 @@ export default function DeliveryCalendar() {
   const startPad = startOfMonth(month).getDay()
   const getSched = (day: Date) => schedules.find(s => isSameDay(parseISO(s.delivery_date), day))
 
-  const summary = {
+  // Stats counted from actual delivery_schedules rows for the current month
+  // only — this naturally respects join date (no rows before start_date) and
+  // skipped/paused state.
+  const todayStr = new Date().toISOString().split('T')[0]
+  const summary = useMemo(() => ({
     total:     schedules.length,
     delivered: schedules.filter(s => s.status === 'delivered').length,
-    scheduled: schedules.filter(s => s.status === 'scheduled').length,
+    // "Upcoming" = scheduled rows from today onward — past 'scheduled' rows
+    // are awaiting admin action and should not inflate the upcoming count.
+    upcoming:  schedules.filter(s => s.status === 'scheduled' && s.delivery_date >= todayStr).length,
     skipped:   schedules.filter(s => s.status === 'skipped').length,
-  }
-  const pauseRemaining = Math.max(0, PAUSE_DAYS_PER_MONTH - summary.skipped)
+  }), [schedules, todayStr])
 
   const pauseMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'pause' | 'unpause' }) => {
@@ -94,9 +107,18 @@ export default function DeliveryCalendar() {
 
       {/* Month nav */}
       <div className="bg-white rounded-2xl flex items-center justify-between px-4 py-3 shadow-card border border-[var(--border)]">
-        <button onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1))} className="text-2xl px-2 hover:opacity-60 transition-opacity">‹</button>
+        <button
+          onClick={() => canGoBack && setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1))}
+          disabled={!canGoBack}
+          className="text-2xl px-2 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-60"
+          aria-label="Previous month"
+        >‹</button>
         <p className="font-bold" style={{ color: 'var(--blue-deep)' }}>{format(month, 'MMMM yyyy')}</p>
-        <button onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1))} className="text-2xl px-2 hover:opacity-60 transition-opacity">›</button>
+        <button
+          onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1))}
+          className="text-2xl px-2 hover:opacity-60 transition-opacity"
+          aria-label="Next month"
+        >›</button>
       </div>
 
       {/* Summary */}
@@ -104,7 +126,7 @@ export default function DeliveryCalendar() {
         {[
           { label: 'Total',     val: summary.total,     bg: '#EAF4FF', color: '#082567' },
           { label: 'Delivered', val: summary.delivered, bg: '#D1FAE5', color: '#065F46' },
-          { label: 'Upcoming',  val: summary.scheduled, bg: '#EFF6FF', color: '#1D4ED8' },
+          { label: 'Upcoming',  val: summary.upcoming,  bg: '#EFF6FF', color: '#1D4ED8' },
           { label: 'Skipped',   val: summary.skipped,   bg: '#F3F4F6', color: '#374151' },
         ].map(s => (
           <div key={s.label} className="rounded-xl p-2.5 text-center" style={{ background: s.bg }}>
@@ -127,18 +149,21 @@ export default function DeliveryCalendar() {
           <div className="grid grid-cols-7 gap-0.5">
             {Array.from({ length: startPad }).map((_, i) => <div key={`p${i}`} />)}
             {days.map(day => {
-              const sched   = getSched(day)
-              const isToday = isSameDay(day, new Date())
+              const sched     = getSched(day)
+              const isToday   = isSameDay(day, new Date())
+              const dayKey    = format(day, 'yyyy-MM-dd')
+              const beforeJoin = joinDate ? dayKey < joinDate : false
               return (
                 <button
                   key={day.toISOString()}
                   onClick={() => sched && setSelected(sched)}
-                  className={`flex flex-col items-center py-1.5 rounded-lg transition-all ${sched ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'} ${isToday ? 'ring-2 ring-[var(--blue)]' : ''}`}
+                  disabled={beforeJoin}
+                  className={`flex flex-col items-center py-1.5 rounded-lg transition-all ${sched && !beforeJoin ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'} ${isToday ? 'ring-2 ring-[var(--blue)]' : ''} ${beforeJoin ? 'opacity-30' : ''}`}
                 >
                   <span className="text-xs font-medium" style={{ color: isToday ? 'var(--blue)' : 'var(--text)' }}>
                     {format(day, 'd')}
                   </span>
-                  {sched && (
+                  {sched && !beforeJoin && (
                     <span className="w-1.5 h-1.5 rounded-full mt-0.5" style={{ background: DOT[sched.status] ?? '#9CA3AF' }} />
                   )}
                 </button>
@@ -157,16 +182,14 @@ export default function DeliveryCalendar() {
         </Card>
       )}
 
-      {/* Pause-day budget hint */}
       <p className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>
-        Pauses left this month: <span className="font-semibold" style={{ color: 'var(--blue-deep)' }}>{pauseRemaining} / {PAUSE_DAYS_PER_MONTH}</span>
-        {' · '}requests must be made before {PAUSE_CUTOFF_HOUR}:00 the previous day.
+        Pause / resume requests must be made before {PAUSE_CUTOFF_HOUR}:00 the previous day.
       </p>
 
       {/* Selected day detail */}
       {selected && (() => {
         const cutoffPassed = pauseCutoffPassed(selected.delivery_date)
-        const canPause     = selected.status === 'scheduled' && !cutoffPassed && pauseRemaining > 0
+        const canPause     = selected.status === 'scheduled' && !cutoffPassed
         const canUnpause   = selected.status === 'skipped'   && !cutoffPassed
         return (
           <Card className="!border-[var(--blue)]">
@@ -217,11 +240,6 @@ export default function DeliveryCalendar() {
             {selected.status === 'scheduled' && cutoffPassed && (
               <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
                 Cutoff passed — please contact support to change this delivery.
-              </p>
-            )}
-            {selected.status === 'scheduled' && pauseRemaining === 0 && !cutoffPassed && (
-              <p className="text-xs mt-3" style={{ color: '#B45309' }}>
-                Monthly pause limit reached ({PAUSE_DAYS_PER_MONTH}).
               </p>
             )}
           </Card>

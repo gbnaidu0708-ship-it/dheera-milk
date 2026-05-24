@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: 'Pure, hygienic farm-fresh milk delivered daily to Whitefield, Bengaluru.',
   manifest:    '/manifest.json',
   keywords:    ['fresh milk', 'milk delivery', 'Whitefield', 'Bengaluru', 'farm fresh'],
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Dheera Fresh' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Dheera Fresh Milk' },
   icons:       { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
   openGraph:   {
     title:       'Dheera Fresh Milk',

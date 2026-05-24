@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { fmtDate } from '@/lib/constants'
 import Button     from '@/components/ui/Button'
@@ -9,23 +10,25 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 import toast from 'react-hot-toast'
 
 export default function AdminCustomers() {
-  const [customers, setCustomers] = useState<any[]>([])
-  const [loading,   setLoading]   = useState(true)
+  const qc = useQueryClient()
   const [search,    setSearch]    = useState('')
   const [page,      setPage]      = useState(1)
-  const [total,     setTotal]     = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const params = new URLSearchParams({ search, page: String(page), limit: '15' })
-    const res    = await fetch(`/api/customers?${params}`)
-    const json   = await res.json()
-    setCustomers(json.data ?? [])
-    setTotal(json.count ?? 0)
-    setLoading(false)
-  }, [search, page])
-
-  useEffect(() => { load() }, [load])
+  const { data, isPending, refetch } = useQuery({
+    queryKey: ['admin', 'customers', search, page],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search, page: String(page), limit: '15' })
+      const res    = await fetch(`/api/customers?${params}`)
+      const json   = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      return json as { data: any[]; count: number }
+    },
+    // Keep prior page visible while paginating to avoid flashes.
+    placeholderData: prev => prev,
+  })
+  const customers = data?.data ?? []
+  const total     = data?.count ?? 0
+  const loading   = isPending
 
   const toggleActive = async (id: string, cur: boolean) => {
     const res = await fetch('/api/customers', {
@@ -33,7 +36,7 @@ export default function AdminCustomers() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ id, is_active: !cur }),
     })
-    if (res.ok) { toast.success('Updated!'); load() }
+    if (res.ok) { toast.success('Updated!'); qc.invalidateQueries({ queryKey: ['admin', 'customers'] }) }
     else toast.error('Failed to update')
   }
 
@@ -52,11 +55,11 @@ export default function AdminCustomers() {
           placeholder="Search by name or mobile…"
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1) }}
-          onKeyDown={e => e.key === 'Enter' && load()}
+          onKeyDown={e => e.key === 'Enter' && refetch()}
           className="flex-1 px-4 py-2.5 rounded-xl border text-sm"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         />
-        <Button size="sm" onClick={load}>Search</Button>
+        <Button size="sm" onClick={() => refetch()}>Search</Button>
       </div>
 
       {/* Table */}

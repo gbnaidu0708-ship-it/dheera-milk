@@ -67,6 +67,22 @@ export default function SubscribeFlow() {
   const price = qtyValid ? calcPrice(milkType, resolvedQty) : 0
   const qtyLabel = (ml: number) => (ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`)
 
+  // Days from effective date through end of that calendar month (inclusive).
+  // Used to show the prorated current-month total in the summary card.
+  const remainingDaysInMonth = useMemo(() => {
+    if (!startDate) return 0
+    const [y, m, d] = startDate.split('-').map(Number)
+    if (!y || !m || !d) return 0
+    const last = new Date(y, m, 0).getDate()  // dynamic month length
+    return Math.max(0, last - d + 1)
+  }, [startDate])
+  const monthEndLabel = useMemo(() => {
+    if (!startDate) return ''
+    const [y, m] = startDate.split('-').map(Number)
+    const last   = new Date(y, m, 0)
+    return last.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  }, [startDate])
+
   const unchanged = useMemo(() => {
     if (!subscription) return false
     return (
@@ -75,6 +91,9 @@ export default function SubscribeFlow() {
       subscription.start_date === startDate
     )
   }, [subscription, milkType, resolvedQty, startDate])
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  const startValid = startDate >= todayStr
 
   const modifyMutation = useMutation({
     mutationFn: async () => {
@@ -96,7 +115,7 @@ export default function SubscribeFlow() {
       toast.success('Subscription updated 🥛')
       // Cover both the home queries and the per-user subscription/today caches.
       qc.invalidateQueries({ queryKey: ['customer'] })
-      router.push('/dashboard')
+      router.push('/dashboard?upi=1')
     },
     onError: (e: any) => toast.error(e.message ?? 'Something went wrong'),
   })
@@ -104,6 +123,10 @@ export default function SubscribeFlow() {
   const createSubscription = async () => {
     if (!qtyValid) {
       toast.error(`Enter a quantity between ${QTY_CUSTOM_MIN_ML}ml and ${QTY_MAX_ML}ml in 500ml steps`)
+      return
+    }
+    if (!startValid) {
+      toast.error('Start date cannot be in the past')
       return
     }
     setLoading(true)
@@ -122,7 +145,7 @@ export default function SubscribeFlow() {
       if (!res.ok) throw new Error(json.error ?? 'Failed')
       toast.success(`Subscribed! ${json.schedules_created} deliveries scheduled 🥛`)
       qc.invalidateQueries({ queryKey: ['customer'] })
-      router.push('/dashboard')
+      router.push('/dashboard?upi=1')
     } catch (e: any) {
       toast.error(e.message ?? 'Something went wrong')
     } finally {
@@ -131,6 +154,10 @@ export default function SubscribeFlow() {
   }
 
   const handleSubmit = () => {
+    if (!startValid) {
+      toast.error('Start date cannot be in the past')
+      return
+    }
     if (isModify) {
       if (unchanged) {
         toast('No changes to save', { icon: 'ℹ️' })
@@ -277,16 +304,28 @@ export default function SubscribeFlow() {
             <input
               type="date"
               value={startDate}
-              min={new Date().toISOString().split('T')[0]}
-              onChange={e => setStartDate(e.target.value)}
+              min={todayStr}
+              onChange={e => {
+                const v = e.target.value
+                // Block manual entry of past dates — clamp to today.
+                setStartDate(v && v < todayStr ? todayStr : v)
+              }}
               className="w-full px-4 py-3 rounded-xl border-2 text-sm"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              style={{
+                borderColor: startValid ? 'var(--border)' : '#EF4444',
+                color: 'var(--text)',
+              }}
             />
+            {!startValid && (
+              <p className="text-xs mt-1" style={{ color: '#EF4444' }}>
+                Start date cannot be in the past.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(1)}>← Back</Button>
-            <Button full onClick={() => qtyValid && setStep(3)} disabled={!qtyValid}>Next →</Button>
+            <Button full onClick={() => qtyValid && startValid && setStep(3)} disabled={!qtyValid || !startValid}>Next →</Button>
           </div>
         </div>
       )}
@@ -301,8 +340,10 @@ export default function SubscribeFlow() {
               ['Quantity',      qtyLabel(resolvedQty)],
               ['Plan',          'Monthly (daily delivery)'],
               [isModify ? 'Effective From' : 'Start Date', startDate],
+              ['Through',       monthEndLabel],
+              ['Days this month', `${remainingDaysInMonth} day${remainingDaysInMonth === 1 ? '' : 's'}`],
               ['Price / Day',   fmt(price)],
-              ['Est. Monthly',  fmt(price * 30)],
+              ['This month total', fmt(price * remainingDaysInMonth)],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between py-2 border-b last:border-0" style={{ borderColor: 'rgba(13,59,159,0.1)' }}>
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{k}</span>

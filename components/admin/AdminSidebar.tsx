@@ -42,7 +42,7 @@ export default function AdminSidebar() {
             🥛
           </div>
           <div>
-            <p className="font-bold text-white text-[15px]">Dheera Fresh</p>
+            <p className="font-bold text-white text-[15px]">Dheera Fresh Milk</p>
             <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.5)' }}>Admin Panel</p>
           </div>
         </div>

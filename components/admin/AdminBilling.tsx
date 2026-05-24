@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSupabase } from '@/lib/supabase'
-import { fmt, fmtMonth } from '@/lib/constants'
+import { fmt, fmtDate, fmtMonth } from '@/lib/constants'
 import type { DbInvoice, DbUser } from '@/types'
 import Card       from '@/components/ui/Card'
 import Button     from '@/components/ui/Button'
@@ -14,9 +14,12 @@ import toast from 'react-hot-toast'
 const INVOICES_KEY  = ['admin', 'invoices']  as const
 const CUSTOMERS_KEY = ['admin', 'customers'] as const
 
+type Filter = 'all' | 'pending' | 'partial' | 'paid' | 'overdue'
+
 export default function AdminBilling() {
   const qc = useQueryClient()
-  const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'paid'>('all')
+  const [filter, setFilter] = useState<Filter>('all')
+  const todayStr = new Date().toISOString().split('T')[0]
   // Generate invoice
   const [genUser,  setGenUser]  = useState('')
   const [genMonth, setGenMonth] = useState(String(new Date().getMonth() + 1))
@@ -104,10 +107,18 @@ export default function AdminBilling() {
   const generating = generateInvoiceMutation.isPending
   const paying     = recordPaymentMutation.isPending
 
-  const filtered = filter === 'all' ? invoices : invoices.filter(i => i.payment_status === filter)
+  const isOverdue = (i: any) =>
+    Number(i.pending_amount) > 0 && i.due_date && i.due_date < todayStr
+
+  const filtered =
+    filter === 'all'     ? invoices
+    : filter === 'overdue' ? invoices.filter(isOverdue)
+    :                       invoices.filter(i => i.payment_status === filter)
+
   const totalBilled    = invoices.reduce((s, i) => s + Number(i.total_amount),   0)
   const totalCollected = invoices.reduce((s, i) => s + Number(i.paid_amount),    0)
   const totalPending   = invoices.reduce((s, i) => s + Number(i.pending_amount), 0)
+  const overdueCount   = invoices.filter(isOverdue).length
 
   return (
     <div className="space-y-5">
@@ -153,11 +164,11 @@ export default function AdminBilling() {
 
       {/* Filter */}
       <div className="flex gap-2 flex-wrap">
-        {(['all', 'pending', 'partial', 'paid'] as const).map(f => (
+        {(['all', 'pending', 'partial', 'paid', 'overdue'] as Filter[]).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className="px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all"
             style={{ background: filter === f ? 'var(--blue)' : '#F0F4FF', color: filter === f ? '#fff' : 'var(--text-muted)' }}>
-            {f}
+            {f === 'overdue' ? `Overdue (${overdueCount})` : f}
           </button>
         ))}
       </div>
@@ -171,14 +182,15 @@ export default function AdminBilling() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: '#F8FAFF' }}>
-                  {['Invoice', 'Customer', 'Period', 'Total', 'Paid', 'Pending', 'Status', 'Action'].map(h => (
+                  {['Invoice', 'Customer', 'Period', 'Total', 'Paid', 'Pending', 'Due', 'Status', 'Action'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((inv, i) => {
-                  const u = inv.user as any
+                  const u  = inv.user as any
+                  const od = isOverdue(inv)
                   return (
                     <tr key={inv.id} style={{ borderTop: '1px solid rgba(13,59,159,0.06)', background: i % 2 === 0 ? '#fff' : '#FAFBFF' }}>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--blue-deep)' }}>{inv.invoice_number}</td>
@@ -190,7 +202,11 @@ export default function AdminBilling() {
                       <td className="px-4 py-3 font-semibold" style={{ color: 'var(--blue-deep)' }}>{fmt(inv.total_amount)}</td>
                       <td className="px-4 py-3 font-semibold" style={{ color: 'var(--green)' }}>{fmt(inv.paid_amount)}</td>
                       <td className="px-4 py-3 font-semibold" style={{ color: inv.pending_amount > 0 ? '#EF4444' : 'var(--green)' }}>{fmt(inv.pending_amount)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={inv.payment_status} /></td>
+                      <td className="px-4 py-3 text-xs" style={{ color: od ? '#EF4444' : 'var(--text-muted)' }}>
+                        {inv.due_date ? fmtDate(inv.due_date) : '—'}
+                        {od && <span className="ml-1 font-bold">· overdue</span>}
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge status={od ? 'overdue' : inv.payment_status} /></td>
                       <td className="px-4 py-3">
                         {inv.pending_amount > 0 && (
                           <button

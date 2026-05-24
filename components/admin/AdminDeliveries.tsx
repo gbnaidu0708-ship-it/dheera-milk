@@ -31,37 +31,39 @@ export default function AdminDeliveries() {
   })
   const loading = isPending
 
+  const callPatch = async (ids: string[], status: string) => {
+    const res  = await fetch('/api/admin/deliveries', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ids, status }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? 'Failed')
+    return json.data
+  }
+
   const markMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const upd: Record<string, any> = { status }
-      if (status === 'delivered') upd.delivered_at = new Date().toISOString()
-      const { error } = await getSupabase().from('delivery_schedules').update(upd).eq('id', id)
-      if (error) throw error
+      await callPatch([id], status)
       return { status }
     },
     onSuccess: ({ status }) => {
       toast.success(`Marked ${status}!`)
       qc.invalidateQueries({ queryKey: deliveriesKey })
     },
-    onError: () => toast.error('Failed to update'),
+    onError: (e: any) => toast.error(e.message ?? 'Failed to update'),
   })
 
   const markAllMutation = useMutation({
     mutationFn: async (pending: any[]) => {
-      await Promise.all(
-        pending.map(d =>
-          getSupabase()
-            .from('delivery_schedules')
-            .update({ status: 'delivered', delivered_at: new Date().toISOString() })
-            .eq('id', d.id),
-        ),
-      )
+      await callPatch(pending.map(d => d.id), 'delivered')
       return pending.length
     },
     onSuccess: (count) => {
       toast.success(`Marked ${count} deliveries as delivered!`)
       qc.invalidateQueries({ queryKey: deliveriesKey })
     },
+    onError: (e: any) => toast.error(e.message ?? 'Failed to update'),
   })
 
   const markStatus       = (id: string, status: string) => markMutation.mutate({ id, status })
@@ -158,16 +160,28 @@ export default function AdminDeliveries() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <StatusBadge status={d.status} />
-                  {d.status === 'scheduled' && (
-                    <div className="flex gap-1">
+                  <div className="flex gap-1 flex-wrap justify-end">
+                    {d.status !== 'delivered' && (
                       <button
                         disabled={updatingId === d.id}
                         onClick={() => markStatus(d.id, 'delivered')}
                         className="text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all"
                         style={{ background: '#D1FAE5', color: '#065F46' }}
                       >
-                        {updatingId === d.id ? '…' : '✓ Done'}
+                        {updatingId === d.id ? '…' : '✓ Delivered'}
                       </button>
+                    )}
+                    {d.status !== 'scheduled' && (
+                      <button
+                        disabled={updatingId === d.id}
+                        onClick={() => markStatus(d.id, 'scheduled')}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg"
+                        style={{ background: '#EFF6FF', color: '#1D4ED8' }}
+                      >
+                        ↺ Pending
+                      </button>
+                    )}
+                    {d.status !== 'skipped' && (
                       <button
                         disabled={updatingId === d.id}
                         onClick={() => markStatus(d.id, 'skipped')}
@@ -176,8 +190,8 @@ export default function AdminDeliveries() {
                       >
                         Skip
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </Card>
             )

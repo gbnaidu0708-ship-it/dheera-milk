@@ -24,7 +24,7 @@ export default function Footer() {
         {/* Brand */}
         <div>
           <span className="font-display font-extrabold text-2xl block mb-4">
-            Dheera <span style={{ color: 'var(--green-light)' }}>Fresh</span>
+            Dheera <span style={{ color: 'var(--green-light)' }}>Fresh Milk</span>
           </span>
           <p className="text-sm leading-relaxed max-w-[260px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
             Pure, hygienic, farm-fresh dairy delivered to your doorstep every morning.
